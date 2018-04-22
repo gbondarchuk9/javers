@@ -10,9 +10,34 @@ import org.javers.repository.jql.QueryBuilder
 
 import java.time.LocalDate
 
+import static org.javers.core.commit.CommitId.valueOf
 import static org.javers.repository.jql.QueryBuilder.byInstanceId
 
 class JaversRepositoryShadowE2ETest extends JaversRepositoryE2ETest {
+
+    def "should return nothing when querying with non-existing commitId"() {
+        given:
+        def ref1 = new SnapshotEntity(id: 2)
+        def ref2 = new SnapshotEntity(id: 3)
+        javers.commit("a", ref1)
+        javers.commit("a", ref2)
+
+        def entity = new SnapshotEntity(id: 1, listOfEntities: [ref1,ref2])
+        javers.commit("a", entity)
+
+        when:
+        def query = byInstanceId(1, SnapshotEntity)
+                .withScopeDeepPlus(1)
+                .withCommitId(valueOf("543434.0")) //non-existing commitId
+                .build()
+
+        def snapshots = javers.findSnapshots(query)
+        def shadows = javers.findShadows(query)
+
+        then:
+        snapshots.size() == 0
+        shadows.size() == 0
+    }
 
     def "should not mix COMMIT_DEEP scope with DEEP_PLUS scope"(){
       given:
@@ -92,10 +117,10 @@ class JaversRepositoryShadowE2ETest extends JaversRepositoryE2ETest {
             assert it.get().id == 1
         }
 
-        shadows[0].commitMetadata.id.value() == "2.0"
+        commitSeq(shadows[0].commitMetadata) == 2
         shadows[0].get().intProperty == 2
 
-        shadows[1].commitMetadata.id.value() == "1.0"
+        commitSeq(shadows[1].commitMetadata) == 1
         shadows[1].get().intProperty == 1
     }
 

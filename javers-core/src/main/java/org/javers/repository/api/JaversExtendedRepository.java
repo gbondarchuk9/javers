@@ -1,7 +1,6 @@
 package org.javers.repository.api;
 
 import org.javers.common.collections.Lists;
-import org.javers.common.string.ToStringBuilder;
 import org.javers.core.commit.Commit;
 import org.javers.core.commit.CommitId;
 import org.javers.core.diff.Change;
@@ -11,15 +10,11 @@ import org.javers.core.metamodel.object.CdoSnapshot;
 import org.javers.core.metamodel.object.GlobalId;
 import org.javers.core.metamodel.object.InstanceId;
 import org.javers.core.metamodel.type.EntityType;
-import org.javers.core.metamodel.type.JaversType;
 import org.javers.core.metamodel.type.ManagedType;
 import org.javers.core.snapshot.SnapshotDiffer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.stream.Collectors;
 
 import static org.javers.common.validation.Validate.argumentIsNotNull;
 import static org.javers.common.validation.Validate.argumentsAreNotNull;
@@ -42,7 +37,7 @@ public class JaversExtendedRepository implements JaversRepository {
         argumentsAreNotNull(globalId, queryParams);
 
         List<CdoSnapshot> snapshots = getStateHistory(globalId, queryParams);
-        List<Change> changes = getChangesIntroducedBySnapshots(queryParams.newObjectChanges() ? snapshots : skipInitial(snapshots));
+        List<Change> changes = getChangesIntroducedBySnapshots(snapshots, queryParams.newObjectChanges());
 
         return filterByPropertyName(changes, queryParams);
     }
@@ -51,7 +46,7 @@ public class JaversExtendedRepository implements JaversRepository {
         argumentsAreNotNull(givenClasses, queryParams);
 
         List<CdoSnapshot> snapshots = getStateHistory(givenClasses, queryParams);
-        List<Change> changes = getChangesIntroducedBySnapshots(queryParams.newObjectChanges() ? snapshots : skipInitial(snapshots));
+        List<Change> changes = getChangesIntroducedBySnapshots(snapshots, queryParams.newObjectChanges());
         return filterByPropertyName(changes, queryParams);
     }
 
@@ -59,14 +54,14 @@ public class JaversExtendedRepository implements JaversRepository {
         argumentsAreNotNull(ownerEntity, path, queryParams);
 
         List<CdoSnapshot> snapshots = getValueObjectStateHistory(ownerEntity, path, queryParams);
-        return getChangesIntroducedBySnapshots(queryParams.newObjectChanges() ? snapshots : skipInitial(snapshots));
+        return getChangesIntroducedBySnapshots(snapshots, queryParams.newObjectChanges());
     }
 
     public List<Change> getChanges(boolean newObjects, QueryParams queryParams) {
         argumentsAreNotNull(queryParams);
 
         List<CdoSnapshot> snapshots = getSnapshots(queryParams);
-        return getChangesIntroducedBySnapshots(newObjects ? snapshots : skipInitial(snapshots));
+        return getChangesIntroducedBySnapshots(snapshots, queryParams.newObjectChanges());
     }
 
     @Override
@@ -105,8 +100,7 @@ public class JaversExtendedRepository implements JaversRepository {
         return delegate.getStateHistory(globalId, QueryParamsBuilder
                         .withLimit(limit)
                         .withChildValueObjects(withChildValueObjects)
-                        .toCommitId(timePoint)
-                        .build());
+                        .toCommitId(timePoint).build());
     }
 
     /**
@@ -117,6 +111,16 @@ public class JaversExtendedRepository implements JaversRepository {
 
         return delegate.getStateHistory(globalId, QueryParamsBuilder.withLimit(1).to(timePoint).build())
                 .stream().findFirst();
+    }
+
+    public List<CdoSnapshot> getHistoricals(GlobalId globalId, LocalDateTime timePoint, boolean withChildValueObjects, int limit) {
+        argumentsAreNotNull(globalId, timePoint);
+
+        return delegate.getStateHistory(globalId, QueryParamsBuilder
+                        .withLimit(limit)
+                        .withChildValueObjects(withChildValueObjects)
+                        .to(timePoint).build());
+
     }
 
     @Override
@@ -170,12 +174,16 @@ public class JaversExtendedRepository implements JaversRepository {
         return Lists.negativeFilter(snapshots, snapshot -> snapshot.isInitial());
     }
 
-    private List<Change> getChangesIntroducedBySnapshots(List<CdoSnapshot> snapshots) {
-        return snapshotDiffer.calculateDiffs(snapshots, previousSnapshotsCalculator.calculate(snapshots));
+    private List<Change> getChangesIntroducedBySnapshots(List<CdoSnapshot> snapshots, boolean newObjectChanges) {
+        return snapshotDiffer.calculateDiffs(newObjectChanges ? snapshots : skipInitial(snapshots), previousSnapshotsCalculator.calculate(snapshots));
     }
 
     //required for the corner case, when valueObject snapshots consume all the limit
     private List<CdoSnapshot> loadMasterEntitySnapshotIfNecessary(InstanceId instanceId, List<CdoSnapshot> alreadyLoaded) {
+        if (alreadyLoaded.isEmpty()) {
+            return alreadyLoaded;
+        }
+
         if (alreadyLoaded.stream().filter(s -> s.getGlobalId().equals(instanceId)).findFirst().isPresent()) {
             return alreadyLoaded;
         }

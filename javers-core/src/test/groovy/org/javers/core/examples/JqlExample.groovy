@@ -1,6 +1,7 @@
 package org.javers.core.examples
 
 import org.javers.common.date.FakeDateProvider
+import org.javers.core.Changes
 import org.javers.core.JaversBuilder
 import org.javers.core.commit.CommitId
 import org.javers.core.diff.changetype.NewObject
@@ -129,7 +130,7 @@ class JqlExample extends Specification {
         javers.commit("author", bob)       // second commit
 
         when:
-        def changes = javers.findChanges( QueryBuilder.anyDomainObject().build() )
+        Changes changes = javers.findChanges( QueryBuilder.anyDomainObject().build() )
 
         then:
         assert changes.size() == 2
@@ -140,7 +141,7 @@ class JqlExample extends Specification {
         assert cityChange.left ==  "London"
         assert cityChange.right == "Paris"
 
-        printChanges(changes)
+        println changes.prettyPrint()
     }
 
     def "should query for Shadows of an object"() {
@@ -264,10 +265,10 @@ class JqlExample extends Specification {
         javers.commit("author", new Employee(name:"john",age:25) )
 
         when:
-        def changes = javers.findChanges( QueryBuilder.byInstanceId("bob", Employee.class).build() )
+        Changes changes = javers.findChanges( QueryBuilder.byInstanceId("bob", Employee.class).build() )
 
         then:
-        printChanges(changes)
+        println changes.prettyPrint()
         assert changes.size() == 2
     }
 
@@ -281,20 +282,22 @@ class JqlExample extends Specification {
         javers.commit("author", new Employee(name:"lucy", primaryAddress: new Address(city:"New York")))
         javers.commit("author", new Employee(name:"lucy", primaryAddress: new Address(city:"Washington")))
 
-        when: "query for ValueObject changes by owning Entity instance Id"
-        def changes = javers
+        when:
+        println "query for ValueObject changes by owning Entity instance Id"
+        Changes changes = javers
             .findChanges( QueryBuilder.byValueObjectId("bob",Employee.class,"primaryAddress").build())
 
         then:
-        printChanges(changes)
+        println changes.prettyPrint()
         assert changes.size() == 1
 
-        when: "query for ValueObject changes by owning Entity class"
+        when:
+        println "query for ValueObject changes by owning Entity class"
         changes = javers
             .findChanges( QueryBuilder.byValueObject(Employee.class,"primaryAddress").build())
 
         then:
-        printChanges(changes)
+        println changes.prettyPrint()
         assert changes.size() == 2
     }
 
@@ -308,11 +311,11 @@ class JqlExample extends Specification {
                 new Person(login: "bob", addresses: [new Address(city: "Paris"), new Address(city: "Luton")]))
 
         when:
-        def changes = javers
+        Changes changes = javers
                 .findChanges(QueryBuilder.byValueObjectId("bob",Person.class, "addresses/0").build())
 
         then:
-        printChanges(changes)
+        println changes.prettyPrint()
         assert changes.size() == 1
     }
 
@@ -324,11 +327,11 @@ class JqlExample extends Specification {
         javers.commit("author", new Person(login: "bob", addressMap: ["HOME":new Address(city: "London")]))
 
         when:
-        def changes = javers
+        Changes changes = javers
             .findChanges(QueryBuilder.byValueObjectId("bob", Person.class, "addressMap/HOME").build())
 
         then:
-        printChanges(changes)
+        println changes.prettyPrint()
         assert changes.size() == 1
     }
 
@@ -343,10 +346,10 @@ class JqlExample extends Specification {
         javers.commit("me", new SnapshotEntity(id:2, intProperty:2))
 
         when:
-        def changes = javers.findChanges( QueryBuilder.byClass(DummyAddress.class).build() )
+        Changes changes = javers.findChanges( QueryBuilder.byClass(DummyAddress.class).build() )
 
         then:
-        printChanges(changes)
+        println changes.prettyPrint()
         assert changes.size() == 2
     }
 
@@ -360,10 +363,10 @@ class JqlExample extends Specification {
         javers.commit("author", new DummyUserDetails(id:1, someValue:"new") )
 
         when:
-        def changes = javers.findChanges( QueryBuilder.anyDomainObject().build() )
+        Changes changes = javers.findChanges( QueryBuilder.anyDomainObject().build() )
 
         then:
-        printChanges(changes)
+        println changes.prettyPrint()
         assert changes.size() == 2
     }
 
@@ -371,17 +374,17 @@ class JqlExample extends Specification {
         given:
         def javers = JaversBuilder.javers().build()
 
-        javers.commit("author", new Employee(name:"bob", age:30, salary:1000) )
-        javers.commit("author", new Employee(name:"bob", age:31, salary:1100) )
-        javers.commit("author", new Employee(name:"bob", age:31, salary:1200) )
+        javers.commit("me", new Employee(name:"bob", age:30, salary:1000) )
+        javers.commit("me", new Employee(name:"bob", age:31, salary:1100) )
+        javers.commit("me", new Employee(name:"bob", age:31, salary:1200) )
 
         when:
         def query = QueryBuilder.byInstanceId("bob", Employee.class)
                 .withChangedProperty("salary").build()
-        def changes = javers.findChanges(query)
+        Changes changes = javers.findChanges(query)
 
         then:
-        printChanges(changes)
+        println changes.prettyPrint()
         assert changes.size() == 2
         assert javers.findSnapshots(query).size() == 3
     }
@@ -390,17 +393,17 @@ class JqlExample extends Specification {
         given:
         def javers = JaversBuilder.javers().build()
 
-        javers.commit( "author", new Employee(name:"bob", salary: 900) )
-        javers.commit( "author", new Employee(name:"bob", salary: 1000) )
-        javers.commit( "author", new Employee(name:"bob", salary: 1100) )
-        javers.commit( "author", new Employee(name:"bob", salary: 1200) )
+        javers.commit( "me", new Employee(name:"bob", salary: 900) )
+        javers.commit( "me", new Employee(name:"bob", salary: 1000) )
+        javers.commit( "me", new Employee(name:"bob", salary: 1100) )
+        javers.commit( "me", new Employee(name:"bob", salary: 1200) )
 
         when:
         def query = QueryBuilder.byInstanceId("bob", Employee.class).limit(2).build()
-        def changes = javers.findChanges(query)
+        Changes changes = javers.findChanges(query)
 
         then:
-        printChanges(changes)
+        println changes.prettyPrint()
         assert changes.size() == 2
         assert javers.findSnapshots(query).size() == 2
     }
@@ -409,17 +412,17 @@ class JqlExample extends Specification {
         given:
         def javers = JaversBuilder.javers().build()
 
-        javers.commit( "author", new Employee(name:"bob", age:29, salary: 900) )
-        javers.commit( "author", new Employee(name:"bob", age:30, salary: 1000) )
-        javers.commit( "author", new Employee(name:"bob", age:31, salary: 1100) )
-        javers.commit( "author", new Employee(name:"bob", age:32, salary: 1200) )
+        javers.commit( "me", new Employee(name:"bob", age:29, salary: 900) )
+        javers.commit( "me", new Employee(name:"bob", age:30, salary: 1000) )
+        javers.commit( "me", new Employee(name:"bob", age:31, salary: 1100) )
+        javers.commit( "me", new Employee(name:"bob", age:32, salary: 1200) )
 
         when:
         def query = QueryBuilder.byInstanceId("bob", Employee.class).skip(1).build()
-        def changes = javers.findChanges( query )
+        Changes changes = javers.findChanges( query )
 
         then:
-        printChanges(changes)
+        println changes.prettyPrint()
         assert changes.size() == 4
         assert javers.findSnapshots(query).size() == 3
     }
@@ -435,10 +438,10 @@ class JqlExample extends Specification {
 
         when:
         def query = QueryBuilder.byInstanceId("bob", Employee.class).byAuthor("Pam").build()
-        def changes = javers.findChanges( query )
+        Changes changes = javers.findChanges( query )
 
         then:
-        printChanges(changes)
+        println changes.prettyPrint()
         assert changes.size() == 4
         assert javers.findSnapshots(query).size() == 2
     }
@@ -463,10 +466,10 @@ class JqlExample extends Specification {
         def query = QueryBuilder.anyDomainObject()
             .withCommitProperty("tenant", "ACME")
             .withCommitProperty("event", "promotion").build()
-        def changes = javers.findChanges( query )
+        Changes changes = javers.findChanges( query )
 
         then:
-        printChanges(changes)
+        println changes.prettyPrint()
         assert changes.size() == 2
         assert javers.findSnapshots(query).size() == 1
     }
@@ -488,16 +491,12 @@ class JqlExample extends Specification {
       def query = QueryBuilder.byInstanceId("bob", Employee.class)
               .from(new LocalDate(2016,01,1))
               .to  (new LocalDate(2018,01,1)).build()
-      def changes = javers.findChanges( query )
+      Changes changes = javers.findChanges( query )
 
       then:
+      println changes.prettyPrint()
       assert changes.size() == 3
       assert javers.findSnapshots(query).size() == 3
-
-      println "found changes:"
-      changes.each {
-          println "commitDate: "+ it.commitMetadata.get().commitDate+" "+it
-      }
     }
 
     def "should query for changes (and snapshots) with commitId filter"(){
@@ -512,10 +511,10 @@ class JqlExample extends Specification {
         when:
         def query = QueryBuilder.byInstanceId("bob", Employee.class )
                 .withCommitId( CommitId.valueOf(4) ).build()
-        def changes = javers.findChanges(query)
+        Changes changes = javers.findChanges(query)
 
         then:
-        printChanges(changes)
+        println changes.prettyPrint()
         assert changes.size() == 1
         assert changes[0].left == 21
         assert changes[0].right == 22
@@ -533,10 +532,10 @@ class JqlExample extends Specification {
 
         when:
         def query = QueryBuilder.byInstanceId("bob", Employee.class).withVersion(4).build()
-        def changes = javers.findChanges( query )
+        Changes changes = javers.findChanges( query )
 
         then:
-        printChanges(changes)
+        println changes.prettyPrint()
         assert changes.size() == 1
         assert changes[0].left == 23
         assert changes[0].right == 24
@@ -551,12 +550,12 @@ class JqlExample extends Specification {
         javers.commit( "author", new Employee(name:"bob", age:30, salary: 1200) )
 
         when:
-        def changes = javers
+        Changes changes = javers
             .findChanges( QueryBuilder.byInstanceId("bob", Employee.class)
             .withNewObjectChanges(true).build() )
 
         then:
-        printChanges(changes)
+        println changes.prettyPrint()
         assert changes.size() == 5
         assert changes[4] instanceof NewObject
     }
@@ -576,10 +575,10 @@ class JqlExample extends Specification {
 
       when: "query by instance Id"
       def query = QueryBuilder.byInstanceId("bob", Employee.class).withChildValueObjects().build()
-      def changes = javers.findChanges( query )
+      Changes changes = javers.findChanges( query )
 
       then:
-      printChanges(changes)
+      println changes.prettyPrint()
       assert changes.size() == 2
 
       when: "query by Entity class"
@@ -587,15 +586,6 @@ class JqlExample extends Specification {
       changes = javers.findChanges( query )
 
       then:
-      printChanges(changes)
       assert changes.size() == 2
     }
-
-    def printChanges(def changes){
-        println "changes:"
-        def i = 0
-        changes.each {println "commit "+ it.commitMetadata.get().id.toString()+": $it"; i++}
-    }
-
-
 }
